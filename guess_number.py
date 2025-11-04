@@ -4,91 +4,125 @@ from random import randint
 from access_control import access_control
 from constants import ADMIN_USERNAME, UNKNOWN_COMMAND
 
-start_time = dt.now()
 
+class GuessNumberGame:
+    def __init__(self):
+        self.start_time = dt.now()
+        self.player_name = ""
+        self.total_games = 0
+        self.total_attempts = 0
+        self.best_score = float('inf')  # Минимальное количество попыток
+        self.current_game_attempts = 0
 
-@access_control
-def get_statistics(total_games: int, *args, **kwargs) -> None:
-    game_time = dt.now() - start_time
-    print(f'Общее время игры: {game_time}, текущая игра - №{total_games}')
+    def set_player_name(self, name: str) -> None:
+        """Установка имени игрока с приветствием"""
+        self.player_name = name.strip()
+        if self.player_name == ADMIN_USERNAME:
+            print(
+                '\nДобро пожаловать, создатель! '
+                'Во время игры вам доступны команды "stat", "answer"'
+            )
+        else:
+            print(f'\n{self.player_name}, добро пожаловать в игру!')
 
+    def get_player_name(self) -> str:
+        """Получение имени игрока"""
+        return self.player_name
 
-@access_control
-def get_right_answer(number: int, *args, **kwargs) -> None:
-    print(f'Правильный ответ: {number}')
+    @access_control
+    def get_statistics(self) -> None:
+        """Получение статистики игры (только для админа)"""
+        game_time = dt.now() - self.start_time
+        avg_attempts = self.total_attempts / self.total_games if self.total_games > 0 else 0
 
+        print(f'\n=== СТАТИСТИКА ИГРЫ ===')
+        print(f'Игрок: {self.player_name}')
+        print(f'Всего сыграно игр: {self.total_games}')
+        print(f'Общее время игры: {game_time}')
+        print(f'Всего попыток: {self.total_attempts}')
+        print(f'Среднее количество попыток: {avg_attempts:.1f}')
+        if self.best_score != float('inf'):
+            print(f'Лучший результат: {self.best_score} попыток')
+        print(f'Текущая игра: попытка №{self.current_game_attempts}')
 
-def check_number(username: str, guess: int, number: int) -> bool:
-    # Если число угадано...
-    if guess == number:
-        print(f'Отличная интуиция, {username}! Вы угадали число :)')
-        # ...возвращаем True
-        return True
-    
-    if guess < number:
-        print('Ваше число меньше того, что загадано.')
-    else:
-        print('Ваше число больше того, что загадано.')
-    return False
+    @access_control
+    def get_right_answer(self, number: int) -> None:
+        """Показать правильный ответ (только для админа)"""
+        print(f'Правильный ответ: {number}')
 
+    def check_number(self, guess: int, number: int) -> bool:
+        """Проверка угаданного числа"""
+        self.current_game_attempts += 1
 
-def game(username: str, total_games: int) -> None:
-    # Получаем случайное число в диапазоне от 1 до 100.
-    number = randint(1, 100)
-    print(
-        '\nУгадайте число от 1 до 100.\n'
-        'Для выхода из текущей игры введите команду "stop"'
-    )
-    while True:
-        # Получаем пользовательский ввод, 
-        # отрезаем лишние пробелы и переводим в нижний регистр.
-        user_input = input('Введите число или команду: ').strip().lower()
+        if guess == number:
+            print(f'Отличная интуиция, {self.player_name}! Вы угадали число :)')
+            print(f'Количество попыток: {self.current_game_attempts}')
+            
+            # Обновляем статистику
+            self.total_attempts += self.current_game_attempts
+            if self.current_game_attempts < self.best_score:
+                self.best_score = self.current_game_attempts
+                print(f'Новый рекорд!')
+            
+            return True
 
-        match user_input:
-            case 'stop':
-                break
-            case 'stat':
-                get_statistics(total_games, username=username) 
-            case 'answer':
-                get_right_answer(number, username=username)
-            case _:
-                try:
-                    guess = int(user_input)                
-                except ValueError:
-                    print(UNKNOWN_COMMAND)
-                    continue
+        if guess < number:
+            print('Ваше число меньше того, что загадано.')
+        else:
+            print('Ваше число больше того, что загадано.')
+        return False
 
-                if check_number(username, guess, number):
-                    break          
+    def play_round(self) -> None:
+        """Один раунд игры"""
+        number = randint(1, 100)
+        self.current_game_attempts = 0
 
-
-def get_username() -> str:
-    username = input('Представьтесь, пожалуйста, как Вас зовут?\n').strip()
-    if username == ADMIN_USERNAME:
         print(
-            '\nДобро пожаловать, создатель! '
-            'Во время игры вам доступны команды "stat", "answer"'
+            '\nУгадайте число от 1 до 100.\n'
+            'Для выхода из текущей игры введите команду "stop"'
         )
-    else:
-        print(f'\n{username}, добро пожаловать в игру!')
-    return username
 
+        while True:
+            user_input = input('Введите число или команду: ').strip().lower()
 
-def guess_number() -> None:
-    username = get_username()
-    # Счётчик игр в текущей сессии.
-    total_games = 0
-    while True:
-        total_games += 1
-        game(username, total_games)
-        play_again = input(f'\nХотите сыграть ещё? (yes/no) ')
-        if play_again.strip().lower() not in ('y', 'yes'):
-            break
+            match user_input:
+                case 'stop':
+                    break
+                case 'stat':
+                    self.get_statistics()
+                case 'answer':
+                    self.get_right_answer(number)
+                case _:
+                    try:
+                        guess = int(user_input)                
+                    except ValueError:
+                        print(UNKNOWN_COMMAND)
+                        continue
 
+                    if self.check_number(guess, number):
+                        break
 
-if __name__ == '__main__':
-    print(
-        'Вас приветствует игра "Угадай число"!\n'
-        'Для выхода нажмите Ctrl+C'
-    )
-    guess_number()
+    def get_username(self) -> None:
+        """Запрос имени пользователя"""
+        username = input('Представьтесь, пожалуйста, как Вас зовут?\n')
+        self.set_player_name(username)
+
+    def start(self) -> None:
+        """Запуск основной игровой сессии"""
+        self.get_username()
+
+        while True:
+            self.total_games += 1
+            self.play_round()
+
+            play_again = input(f'\nХотите сыграть ещё? (yes/no) ')
+            if play_again.strip().lower() not in ('y', 'yes'):
+                break
+
+        # Показываем финальную статистику при выходе
+        if self.total_games > 0:
+            print(f'\n=== ФИНАЛЬНАЯ СТАТИСТИКА ===')
+            print(f'Сыграно игр: {self.total_games}')
+            print(f'Лучший результат: {self.best_score if self.best_score != float("inf") else "N/A"} попыток')
+            print(f'Всего попыток: {self.total_attempts}')
+            print('Спасибо за игру!')
